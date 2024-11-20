@@ -1,0 +1,121 @@
+
+ARDUINO CODE:
+-----------------------------------------------------------
+## Smart Gas Detection with Multi-Level Alert System ##
+-----------------------------------------------------------
+
+// include the library code:
+#include <LiquidCrystal.h>
+
+// initialize the library with the numbers of the interface pins
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+
+int analogPin = A0;     // potentiometer wiper connected to analog pin A0
+int buzzerPin = 8;      // piezo buzzer connected to digital pin 8
+int val = 0;            // variable to store the value read
+
+void setup() {
+  // set up the LCD's number of columns and rows:
+  lcd.begin(16, 2);
+  lcd.print("Cheese Gas LIMITED!"); 
+  delay(1000);
+  Serial.begin(9600);          // setup serial
+  lcd.display();
+  pinMode(buzzerPin, OUTPUT);  // set buzzer pin as output
+}
+
+void loop() {
+  lcd.setCursor(0,1);
+  delay(100);
+  val = analogRead(analogPin);     // read the input pin
+  Serial.println(val);             // debug value
+  lcd.clear();
+
+  if (val > 0 && val <= 306) {
+    lcd.print("Normal");
+    noTone(buzzerPin);             // buzzer off
+  } else if (val > 307 && val <= 420) {
+    lcd.print("Gas Detected");
+    noTone(buzzerPin);             // buzzer off
+  } else if (val > 421 && val <= 520) {
+    lcd.print("Dense Gas Det");
+    noTone(buzzerPin);             // buzzer off
+  } else if (val > 521 && val <= 724) {
+    lcd.print("EMERGENCY!");
+    tone(buzzerPin, 1000);         // buzzer on with 1000 Hz frequency
+  }
+}
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+RASPBERRY PI PICO CODE:
+-------------------------------------------------------------------------------------------------------------
+## Intelligent Fan Control and Motion Detection System Using Temperature Sensors with Raspberry Pi Pico ##
+-------------------------------------------------------------------------------------------------------------
+
+import time
+from machine import Pin, I2C, PWM
+import dht
+
+# Initialize the DHT sensor (DHT22 connected to GP14)
+sensor = dht.DHT22(Pin(14))
+
+# Define components
+motion_sensor = Pin(15, Pin.IN)  # Motion sensor connected to GP15
+led = Pin(16, Pin.OUT)           # LED connected to GP16
+relay = Pin(17, Pin.OUT)         # Relay control for stepper motor (fan)
+
+# PWM Fan control (for fan speed adjustment)
+fan_pwm = PWM(Pin(18))  # GPIO pin for PWM fan control (Fan speed control)
+fan_pwm.freq(1000)  # Set the PWM frequency
+fan_pwm.duty_u16(32768)  # Set an initial duty cycle for the fan speed (half of the max duty)
+
+# Buzzer for feedback (connected to GPIO13)
+buzzer = Pin(13, Pin.OUT)  # GPIO pin for the buzzer
+
+# Room temperature threshold (in Celsius)
+room_temperature = 25
+
+while True:
+    # Measure temperature and humidity from DHT22 sensor
+    try:
+        sensor.measure()  # Measure temperature and humidity
+        temperature = sensor.temperature()  # Get temperature in Celsius
+        humidity = sensor.humidity()  # Get humidity percentage
+        print(f"Temperature: {temperature} °C, Humidity: {humidity} %")
+
+        # Motion detection for lights
+        if motion_sensor.value():
+            led.value(1)  # Turn on LED if motion detected
+            led_status = "ON"
+            print("Motion detected! LED light is ON.")
+        else:
+            led.value(0)  # Turn off LED if no motion detected
+            led_status = "OFF"
+            print("No motion detected. LED light is OFF.")
+
+        # Fan control: only turn on if motion detected and temperature is above threshold
+        if motion_sensor.value() and temperature > room_temperature:
+            relay.value(1)  # Turn on fan (relay)
+            fan_pwm.duty_u16(65535)  # Set fan to full speed (maximum duty cycle)
+            fan_status = "ON"
+            print("Fan is ON due to motion and high temperature.")
+            buzzer.value(1)  # Turn on buzzer to indicate fan is ON
+        else:
+            relay.value(0)  # Turn off fan (relay)
+            fan_pwm.duty_u16(0)  # Turn off fan speed (0 is minimum duty cycle)
+            fan_status = "OFF"
+            print("Fan is OFF.")
+            buzzer.value(0)  # Turn off buzzer when fan is OFF
+
+        # Turn on/off buzzer based on LED status
+        if led_status == "ON":
+            buzzer.value(1)  # Buzzer on when LED is ON
+        else:
+            buzzer.value(0)  # Buzzer off when LED is OFF
+
+    except OSError as e:
+        print('Failed to read sensor data:', e)
+    
+    time.sleep(2)  # Wait 2 seconds before taking another reading
